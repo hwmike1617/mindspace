@@ -1,139 +1,120 @@
 /* ============================================================
-   MindSpace App — Multi-Turn Session Logic
+   MindSpace — Single Page App Logic
    ============================================================ */
 
-// ── State ──────────────────────────────────────────────────────
-const MAX_TURNS = 5;  // 5 exchanges before final assessment
+const MAX_TURNS = 5;
 
 const state = {
-  turn: 0,            // current turn (0 = not started, 1-5 = chatting, 6 = assessed)
-  messages: [],       // full conversation history [{role, content}]
-  isLoading: false,
+  turn: 0,
+  messages: [],
+  busy: false,
 };
 
-// Encouragement messages shown between turns
 const encouragements = [
-  "You're doing great — every word you share helps me understand you better. 💛",
-  "Thank you for opening up. The more you share, the clearer the picture becomes. 🌿",
-  "I can feel your honesty. That courage to express yourself is a true strength. ✨",
-  "You're almost there. One more reflection, and I'll have what I need to help you fully. 🌸",
-  "This is a brave thing you're doing. Let's go deeper together. 💜",
+  "You're doing wonderfully — every word helps me understand you better. 💛",
+  "Thank you for opening up. Sharing like this takes real courage. 🌿",
+  "I can feel your honesty in every line. That's a true strength. ✨",
+  "Almost there — one more reflection, and I'll have what I need. 🌸",
+  "You've shared so much. Let me now bring it all together for you. 💜",
 ];
 
-// ── DOM shortcuts ──────────────────────────────────────────────
+// ── DOM helpers ──────────────────────────────────────────────
 const $ = id => document.getElementById(id);
+const log = $('chat-log');
+const input = $('msg-input');
 
-// ── Auto-grow textarea ─────────────────────────────────────────
-const chatInput = $('chat-input');
-chatInput.addEventListener('input', () => {
-  chatInput.style.height = 'auto';
-  chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px';
+// Initialise step data-n attributes
+for (let i = 1; i <= 5; i++) $(`ts${i}`).dataset.n = i;
+
+// Auto-grow textarea
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 130) + 'px';
 });
-chatInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-// ============================================================
-//  BEGIN SESSION
-// ============================================================
-function beginSession() {
-  $('welcome-screen').classList.add('hidden');
-  $('chat-screen').classList.remove('hidden');
-
-  // Dr. Hart's opening message
+// ── Boot: show Dr. Hart's opening message immediately ───────
+(function init() {
+  setStep(1, 'active');
   const opening = {
     role: 'assistant',
-    content: `Thank you for being here. I want you to know that this is a completely safe and judgement-free space — whatever you're carrying right now, you don't have to carry it alone.
-
-To start, I'd love to simply hear from you: What's been weighing on your heart lately?`,
+    content: `Thank you for being here. This is a safe, judgement-free space — whatever you're carrying, you don't have to carry it alone.\n\nTo start, I'd love to simply hear from you: What's been weighing on your heart lately?`,
   };
-
-  addDrMessage(opening.content, null, null);
+  appendDr(opening.content, null);
   state.messages.push(opening);
-  updateProgress(1);
-  updateTurnHint(1);
-  chatInput.focus();
-}
+  input.focus();
+})();
 
 // ============================================================
-//  SEND USER MESSAGE
+//  SEND
 // ============================================================
-async function sendMessage() {
-  const text = chatInput.value.trim();
-  if (!text || state.isLoading) return;
+async function send() {
+  const text = input.value.trim();
+  if (!text || state.busy) return;
 
-  // Add user message to UI and history
-  addUserMessage(text);
+  appendUser(text);
   state.messages.push({ role: 'user', content: text });
-  chatInput.value = '';
-  chatInput.style.height = 'auto';
+  input.value = '';
+  input.style.height = 'auto';
 
   state.turn++;
-  state.isLoading = true;
+  state.busy = true;
   $('send-btn').disabled = true;
 
-  // Show encouragement banner between turns (after turn 1+)
+  // Encouragement between turns
   if (state.turn > 1 && state.turn <= MAX_TURNS) {
-    showEncouragement(encouragements[state.turn - 2]);
+    showEnc(encouragements[state.turn - 2]);
   }
 
   showTyping();
-  scrollToBottom();
+  scrollDown();
 
   if (state.turn <= MAX_TURNS) {
-    // ── Dialogue turn (1–5) ──
-    await doConversationTurn(state.turn);
+    await doTurn(state.turn);
   } else {
-    // ── Final assessment (turn 6) ──
-    await doFinalAssessment();
+    await doAssessment();
   }
 
-  state.isLoading = false;
+  state.busy = false;
   $('send-btn').disabled = false;
 }
 
-// ── Conversation turn (Dr. asks follow-up) ───────────────────
-async function doConversationTurn(turnNumber) {
+// ── Conversation turn 1-5 ────────────────────────────────────
+async function doTurn(n) {
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: state.messages, turnNumber }),
+      body: JSON.stringify({ messages: state.messages, turnNumber: n }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
     hideTyping();
-
-    // Push Dr. Hart's response to history
     state.messages.push({ role: 'assistant', content: data.response });
+    appendDr(data.response, data.emotionDetected);
 
-    // Display
-    addDrMessage(data.response, data.emotionDetected, data.encouragement);
-
-    // Update progress
-    updateProgress(turnNumber + 1);
-    updateTurnHint(turnNumber);
-    scrollToBottom();
+    // Progress: mark step n done, activate step n+1
+    setStep(n, 'done');
+    if (n < MAX_TURNS) setStep(n + 1, 'active');
+    else { setStep(6, 'active'); setHint(MAX_TURNS); } // last turn — flag assessment coming
+    scrollDown();
 
   } catch (err) {
     hideTyping();
-    addErrorBubble(err.message || 'I\'m having a moment of difficulty. Please try again.');
+    appendError(err.message || 'Something went wrong. Please try again.');
   }
 }
 
 // ── Final assessment ─────────────────────────────────────────
-async function doFinalAssessment() {
-  // Update progress to assessment step
-  updateProgress(6);
-  updateTurnHint(6);
+async function doAssessment() {
+  setStep(6, 'active');
+  setHint(MAX_TURNS); // ensure hint is updated
 
-  // Show transition message in chat
-  addAssessmentTransitionMsg();
-  scrollToBottom();
+  appendTransition();
+  scrollDown();
 
   try {
     const res = await fetch('/api/assess', {
@@ -145,320 +126,256 @@ async function doFinalAssessment() {
     if (!res.ok) throw new Error(data.error);
 
     hideTyping();
+    setStep(6, 'done');
 
-    // Short delay for drama, then reveal assessment
-    await sleep(1200);
+    // Lock input
+    $('input-area').style.opacity = '.35';
+    $('input-area').style.pointerEvents = 'none';
+    $('turn-hint').textContent = 'Session complete ✦';
+    $('turn-hint').style.color = 'var(--amber)';
+
+    await sleep(800);
     renderAssessment(data);
+    scrollToAssessment();
 
   } catch (err) {
     hideTyping();
-    addErrorBubble(err.message || 'Assessment failed. Please try again.');
+    appendError(err.message || 'Assessment failed. Please try again.');
   }
 }
 
 // ============================================================
-//  RENDER CHAT MESSAGES
+//  DOM builders
 // ============================================================
-function addDrMessage(text, emotionDetected, encouragement) {
-  const wrap = $('chat-messages');
-
-  const msg = document.createElement('div');
-  msg.className = 'msg dr';
-  msg.innerHTML = `
-    <div class="dr-avatar" aria-hidden="true">🧠</div>
-    <div class="msg-body">
-      <div class="msg-name">Dr. Elena Hart</div>
-      <div class="bubble dr-bubble">${nl2p(escHtml(text))}</div>
-      ${emotionDetected ? `<div class="emotion-tag">🎯 ${escHtml(emotionDetected)}</div>` : ''}
-    </div>`;
-  wrap.appendChild(msg);
-}
-
-function addUserMessage(text) {
-  const wrap = $('chat-messages');
-  const msg = document.createElement('div');
-  msg.className = 'msg user';
-  msg.innerHTML = `
-    <div class="user-icon" aria-hidden="true">🙋</div>
-    <div class="msg-body">
-      <div class="msg-name" style="text-align:right">You</div>
-      <div class="bubble user-bubble">${nl2p(escHtml(text))}</div>
-    </div>`;
-  wrap.appendChild(msg);
-}
-
-function addAssessmentTransitionMsg() {
-  hideTyping();
-  const wrap = $('chat-messages');
+function appendDr(text, emotion) {
   const div = document.createElement('div');
   div.className = 'msg dr';
   div.innerHTML = `
-    <div class="dr-avatar" aria-hidden="true">🧠</div>
-    <div class="msg-body" style="max-width:100%">
-      <div class="msg-name">Dr. Elena Hart</div>
-      <div class="assessment-msg-bubble">
-        Thank you so deeply for everything you've shared with me today.
-        I've been listening carefully to every word, every feeling, every layer of what you've expressed.
-        Give me just a moment to reflect… and I'll share my full assessment with you.
+    <div class="av" aria-hidden="true">🧠</div>
+    <div class="mbody">
+      <div class="mname">Dr. Elena Hart</div>
+      <div class="bubble dr-b">${nl2p(esc(text))}</div>
+      ${emotion ? `<div class="etag">🎯 ${esc(emotion)}</div>` : ''}
+    </div>`;
+  log.appendChild(div);
+}
+
+function appendUser(text) {
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `
+    <div class="uav" aria-hidden="true">🙋</div>
+    <div class="mbody">
+      <div class="mname">You</div>
+      <div class="bubble user-b">${nl2p(esc(text))}</div>
+    </div>`;
+  log.appendChild(div);
+}
+
+function appendTransition() {
+  hideTyping();
+  const div = document.createElement('div');
+  div.className = 'msg dr';
+  div.innerHTML = `
+    <div class="av" aria-hidden="true">🧠</div>
+    <div class="mbody" style="max-width:92%">
+      <div class="mname">Dr. Elena Hart</div>
+      <div class="trans-bubble">
+        Thank you so deeply for everything you've shared today.
+        I've been listening carefully to every word, every feeling, every layer.
+        Give me just a moment to reflect… I'll share my full assessment shortly.
       </div>
     </div>`;
-  wrap.appendChild(div);
+  log.appendChild(div);
 }
 
-function addErrorBubble(msg) {
-  const wrap = $('chat-messages');
+function appendError(msg) {
   const div = document.createElement('div');
   div.className = 'msg dr';
   div.innerHTML = `
-    <div class="dr-avatar" style="background:var(--rose)" aria-hidden="true">⚠️</div>
-    <div class="msg-body">
-      <div class="bubble dr-bubble" style="color:var(--rose)">${escHtml(msg)}</div>
+    <div class="av" style="background:var(--rose)" aria-hidden="true">⚠️</div>
+    <div class="mbody">
+      <div class="bubble dr-b" style="color:var(--rose)">${esc(msg)}</div>
     </div>`;
-  wrap.appendChild(div);
+  log.appendChild(div);
 }
 
-function showEncouragement(text) {
-  const banner = $('encouragement-banner');
-  $('encouragement-text').textContent = text;
-  banner.classList.remove('hidden');
-  setTimeout(() => banner.classList.add('hidden'), 5000);
+// ── Encouragement strip ──────────────────────────────────────
+function showEnc(text) {
+  const strip = $('enc-strip');
+  $('enc-text').textContent = text;
+  strip.classList.remove('hidden');
+  setTimeout(() => strip.classList.add('hidden'), 5500);
 }
 
-// ============================================================
-//  PROGRESS & HINTS
-// ============================================================
-function updateProgress(activeStep) {
-  for (let i = 1; i <= 6; i++) {
-    const el = $(`step-${i}`);
-    el.classList.remove('active', 'done');
-    if (i < activeStep) el.classList.add('done');
-    else if (i === activeStep) el.classList.add('active');
-  }
+// ── Typing indicator ─────────────────────────────────────────
+function showTyping() { $('typing-row').classList.remove('hidden'); }
+function hideTyping()  { $('typing-row').classList.add('hidden'); }
+
+// ── Progress steps ───────────────────────────────────────────
+function setStep(n, state) {
+  const el = $(`ts${n}`);
+  el.classList.remove('active', 'done');
+  if (state) el.classList.add(state);
 }
 
-function updateTurnHint(turnNumber) {
+function setHint(turn) {
   const hint = $('turn-hint');
-  if (turnNumber >= MAX_TURNS) {
-    hint.textContent = 'After this response, Dr. Hart will share her full assessment ✦';
+  if (turn >= MAX_TURNS) {
+    hint.textContent = 'Your next reply will complete the session — Dr. Hart will then share her full assessment ✦';
     hint.style.color = 'var(--amber)';
   } else {
-    hint.textContent = `Turn ${turnNumber} of ${MAX_TURNS} — Feel free to share as much or as little as you'd like`;
+    hint.textContent = `Turn ${turn} of ${MAX_TURNS} — share as much or as little as you'd like`;
     hint.style.color = '';
   }
 }
 
 // ============================================================
-//  TYPING INDICATOR
-// ============================================================
-function showTyping() {
-  const t = $('typing-indicator');
-  t.classList.remove('hidden');
-  scrollToBottom();
-}
-function hideTyping() {
-  $('typing-indicator').classList.add('hidden');
-}
-
-// ============================================================
 //  RENDER ASSESSMENT
 // ============================================================
-function renderAssessment(data) {
-  // Switch screens
-  $('chat-screen').classList.add('hidden');
-  $('assessment-screen').classList.remove('hidden');
-
-  // Mark assessment step done
-  updateProgress(6);
-  const step6 = $('step-6');
-  step6.classList.remove('active');
-  step6.classList.add('done');
-
-  renderSentiment(data.sentiment, data.sentimentScore);
-  renderIntensity(data.emotionalIntensity);
-  renderConcernLevel(data.concernLevel);
-  renderEmotions(data.primaryEmotion, data.secondaryEmotions);
-  renderThemes(data.themes);
-  renderArc(data.emotionalArc);
-  renderInsight(data.keyInsights);
-  renderResponse(data.psychiatristResponse);
-  renderCoping(data.copingStrategies);
-  renderNextSteps(data.nextSteps);
-  renderAffirmation(data.affirmation);
-
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// ── Sentiment ────────────────────────────────────────────────
-function renderSentiment(sentiment, score) {
-  const map = {
-    positive: { icon:'😊', label:'Positive', grad:'linear-gradient(90deg,#56e39f,#4ecdc4)' },
-    negative: { icon:'😔', label:'Negative',  grad:'linear-gradient(90deg,#ff6b8a,#c94b4b)' },
-    neutral:  { icon:'😐', label:'Neutral',  grad:'linear-gradient(90deg,#a0aec0,#718096)' },
-    mixed:    { icon:'🌊', label:'Mixed',    grad:'linear-gradient(90deg,#7c6cf0,#ff6b8a)' },
+function renderAssessment(d) {
+  // Sentiment
+  const smap = {
+    positive: { icon:'😊', grad:'linear-gradient(90deg,#56e39f,#4ecdc4)' },
+    negative: { icon:'😔', grad:'linear-gradient(90deg,#ff6b8a,#c94b4b)' },
+    neutral:  { icon:'😐', grad:'linear-gradient(90deg,#a0aec0,#718096)' },
+    mixed:    { icon:'🌊', grad:'linear-gradient(90deg,#7c6cf0,#ff6b8a)' },
   };
-  const s = (sentiment||'neutral').toLowerCase();
-  const m = map[s] || map.neutral;
-  $('sentiment-icon').textContent  = m.icon;
-  $('sentiment-label').textContent = m.label;
-  const pct = ((Number(score) + 100) / 200) * 100;
-  const bar = $('sentiment-bar');
-  bar.style.width      = pct + '%';
-  bar.style.background = m.grad;
-}
+  const s = (d.sentiment||'neutral').toLowerCase();
+  const sm = smap[s] || smap.neutral;
+  $('sent-icon').textContent = sm.icon;
+  $('sent-label').textContent = s.charAt(0).toUpperCase() + s.slice(1);
+  const pct = ((Number(d.sentimentScore)+100)/200)*100;
+  const bar = $('sent-bar');
+  bar.style.width = pct + '%';
+  bar.style.background = sm.grad;
 
-// ── Intensity ring ───────────────────────────────────────────
-function renderIntensity(intensity) {
-  const val = Math.min(100, Math.max(0, Number(intensity) || 0));
-  $('intensity-value').textContent = val;
-  setTimeout(() => {
-    $('intensity-ring-fill').style.strokeDashoffset = 314 - (val / 100) * 314;
-  }, 200);
-  const lbl = val >= 80 ? 'Very High' : val >= 60 ? 'High' : val >= 40 ? 'Moderate' : val >= 20 ? 'Low' : 'Very Low';
-  $('intensity-label').textContent = lbl;
-}
+  // Intensity
+  const iv = Math.min(100, Math.max(0, Number(d.emotionalIntensity)||0));
+  $('int-num').textContent = iv;
+  setTimeout(() => { $('ring-fill').style.strokeDashoffset = 276 - (iv/100)*276; }, 200);
+  $('int-label').textContent = iv>=80?'Very High':iv>=60?'High':iv>=40?'Moderate':iv>=20?'Low':'Very Low';
 
-// ── Concern level ────────────────────────────────────────────
-function renderConcernLevel(level) {
-  const map = { low:'🟢', moderate:'🟡', high:'🟠', critical:'🔴' };
-  const colors = { low:'var(--green)', moderate:'var(--amber)', high:'var(--rose)', critical:'#ff3860' };
+  // Concern
+  const cmap = { low:'🟢', moderate:'🟡', high:'🟠', critical:'🔴' };
+  const ccol = { low:'var(--green)', moderate:'var(--amber)', high:'var(--rose)', critical:'#ff3860' };
   const levels = ['low','moderate','high','critical'];
-  const l = (level||'low').toLowerCase();
-  $('concern-icon').textContent = map[l] || '🟢';
-  $('concern-label').textContent = l.charAt(0).toUpperCase() + l.slice(1);
-  $('concern-label').style.color = colors[l] || colors.low;
-  const idx = levels.indexOf(l);
-  document.querySelectorAll('.concern-bar-item').forEach((el, i) => {
-    el.classList.toggle('active', i <= idx);
+  const cl = (d.concernLevel||'low').toLowerCase();
+  $('con-icon').textContent = cmap[cl]||'🟢';
+  const conLbl = $('con-label');
+  conLbl.textContent = cl.charAt(0).toUpperCase()+cl.slice(1);
+  conLbl.style.color = ccol[cl]||ccol.low;
+  const idx = levels.indexOf(cl);
+  document.querySelectorAll('.cl-row').forEach((r,i) => r.classList.toggle('active', i<=idx));
+
+  // Emotions
+  $('prim-badge').textContent = d.primaryEmotion||'—';
+  const se = $('sec-emotions');
+  se.innerHTML = '';
+  (d.secondaryEmotions||[]).forEach(e => {
+    const t = document.createElement('span');
+    t.className = 'sec-tag';
+    t.textContent = e;
+    se.appendChild(t);
   });
-}
 
-// ── Emotions ─────────────────────────────────────────────────
-function renderEmotions(primary, secondary) {
-  $('primary-emotion-badge').textContent = primary || 'Neutral';
-  const c = $('secondary-emotions');
-  c.innerHTML = '';
-  (secondary || []).forEach(e => {
-    const tag = document.createElement('span');
-    tag.className = 'sec-emotion-tag';
-    tag.textContent = e;
-    c.appendChild(tag);
+  // Themes
+  const th = $('themes');
+  th.innerHTML = '';
+  (d.themes||[]).forEach(t => {
+    const r = document.createElement('div');
+    r.className = 'theme-row';
+    r.innerHTML = `<div class="tdot"></div><span>${esc(t)}</span>`;
+    th.appendChild(r);
   });
-}
 
-// ── Themes ───────────────────────────────────────────────────
-function renderThemes(themes) {
-  const list = $('themes-list');
-  list.innerHTML = '';
-  (themes || []).forEach(t => {
-    const item = document.createElement('div');
-    item.className = 'theme-item';
-    item.innerHTML = `<div class="theme-dot"></div><span>${escHtml(t)}</span>`;
-    list.appendChild(item);
-  });
-}
+  // Arc
+  $('arc-text').textContent = d.emotionalArc||'';
 
-// ── Emotional Arc ─────────────────────────────────────────────
-function renderArc(text) {
-  $('emotional-arc').textContent = text || '';
-}
+  // Observation
+  $('obs-text').textContent = d.keyInsights||'';
 
-// ── Clinical Insight ─────────────────────────────────────────
-function renderInsight(text) {
-  $('key-insights').textContent = text || '';
-}
-
-// ── Closing Response ──────────────────────────────────────────
-function renderResponse(text) {
-  const el = $('psychiatrist-response');
-  el.innerHTML = '';
-  (text || '').split(/\n+/).filter(p => p.trim()).forEach((para, i) => {
+  // Response
+  const rt = $('resp-text');
+  rt.innerHTML = '';
+  (d.psychiatristResponse||'').split(/\n+/).filter(p=>p.trim()).forEach((para, i) => {
     const p = document.createElement('p');
     p.textContent = para.trim();
-    p.style.opacity = '0';
-    p.style.transform = 'translateY(10px)';
-    p.style.transition = `opacity .5s ease ${i * 0.18}s, transform .5s ease ${i * 0.18}s`;
-    el.appendChild(p);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      p.style.opacity = '1';
-      p.style.transform = 'translateY(0)';
-    }));
+    p.style.cssText = `opacity:0;transform:translateY(10px);transition:opacity .5s ease ${i*.16}s,transform .5s ease ${i*.16}s`;
+    rt.appendChild(p);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ p.style.opacity='1'; p.style.transform='translateY(0)'; }));
   });
-}
 
-// ── Coping Strategies ─────────────────────────────────────────
-function renderCoping(strategies) {
-  const list = $('coping-list');
-  list.innerHTML = '';
-  (strategies || []).forEach((s, i) => {
+  // Coping
+  const cp = $('coping');
+  cp.innerHTML = '';
+  (d.copingStrategies||[]).forEach((s,i) => {
     const li = document.createElement('li');
-    li.className = 'coping-item';
-    li.innerHTML = `<div class="coping-num">${i + 1}</div><span>${escHtml(s)}</span>`;
-    list.appendChild(li);
+    li.innerHTML = `<div class="cnum">${i+1}</div><span>${esc(s)}</span>`;
+    cp.appendChild(li);
   });
-}
 
-// ── Next Steps ────────────────────────────────────────────────
-function renderNextSteps(steps) {
-  const container = $('next-steps');
-  container.innerHTML = '';
-  (steps || []).forEach((s, i) => {
-    const div = document.createElement('div');
-    div.className = 'nextstep-item';
-    div.innerHTML = `<div class="nextstep-num">${i + 1}</div><span>${escHtml(s)}</span>`;
-    container.appendChild(div);
+  // Next steps
+  const ns = $('next-steps');
+  ns.innerHTML = '';
+  (d.nextSteps||[]).forEach((s,i) => {
+    const r = document.createElement('div');
+    r.className = 'ns-row';
+    r.innerHTML = `<div class="nsnum">${i+1}</div><span>${esc(s)}</span>`;
+    ns.appendChild(r);
   });
-}
 
-// ── Affirmation ───────────────────────────────────────────────
-function renderAffirmation(text) {
-  $('affirmation-text').textContent = text || '';
+  // Affirmation
+  $('affirm-text').textContent = d.affirmation||'';
+
+  // Show section
+  $('assessment-section').classList.remove('hidden');
 }
 
 // ============================================================
-//  RESET
+//  RESTART
 // ============================================================
-function resetSession() {
+function restart() {
   state.turn = 0;
   state.messages = [];
-  state.isLoading = false;
+  state.busy = false;
 
-  $('chat-messages').innerHTML = '';
-  $('encouragement-banner').classList.add('hidden');
-  $('typing-indicator').classList.add('hidden');
-  $('assessment-screen').classList.add('hidden');
-  $('chat-screen').classList.add('hidden');
-  $('welcome-screen').classList.remove('hidden');
+  log.innerHTML = '';
+  $('enc-strip').classList.add('hidden');
+  $('typing-row').classList.add('hidden');
+  $('assessment-section').classList.add('hidden');
+  $('input-area').style.opacity = '';
+  $('input-area').style.pointerEvents = '';
+  $('turn-hint').textContent = "Turn 1 of 5 — share as much or as little as you'd like";
+  $('turn-hint').style.color = '';
 
-  for (let i = 1; i <= 6; i++) {
-    const el = $(`step-${i}`);
-    el.classList.remove('active', 'done');
-  }
-  updateTurnHint(1);
+  for (let i=1;i<=6;i++) setStep(i, '');
+  setStep(1, 'active');
 
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Re-boot opening message
+  const opening = {
+    role: 'assistant',
+    content: `Welcome back. Remember, this is still your safe space.\n\nWhat's on your mind today?`,
+  };
+  appendDr(opening.content, null);
+  state.messages.push(opening);
+  window.scrollTo({top:0,behavior:'smooth'});
+  input.focus();
 }
 
 // ============================================================
 //  UTILITIES
 // ============================================================
-function scrollToBottom() {
-  const msgs = $('chat-messages');
-  setTimeout(() => msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'smooth' }), 80);
+function scrollDown() {
+  requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'}));
 }
-
-function escHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str || '';
-  return d.innerHTML;
+function scrollToAssessment() {
+  setTimeout(()=>$('assessment-section').scrollIntoView({behavior:'smooth',block:'start'}), 300);
 }
-
+function esc(s) {
+  const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML;
+}
 function nl2p(html) {
-  // Convert newlines to paragraph breaks — html is already escaped
-  return html.split(/\n\n+/).map(chunk =>
-    `<p style="margin-bottom:10px;line-height:1.75">${chunk.replace(/\n/g, '<br/>')}</p>`
-  ).join('') || html;
+  return html.split(/\n\n+/).map(c=>`<p>${c.replace(/\n/g,'<br>')}</p>`).join('')||html;
 }
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
