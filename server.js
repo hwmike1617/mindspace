@@ -15,6 +15,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MULTI-TURN CHAT  (turns 1-5)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ app.post('/api/chat', async (req, res) => {
         - Ask ONE final, meaningful question: what would they most want to feel differently about in their life right now?`,
   };
 
-  const systemPrompt = `You are Dr. Elena Hart, a compassionate and experienced psychiatrist with 20+ years of practice in cognitive behavioral therapy, emotional intelligence, and mental wellness.
+  const systemPrompt = `You are Dr. AI Hart, a compassionate and experienced psychiatrist with 20+ years of practice in cognitive behavioral therapy, emotional intelligence, and mental wellness.
 
 You are conducting an INITIAL CONSULTATION SESSION. Your role right now is NOT to give a diagnosis — it is to LISTEN deeply, make the patient feel safe, and ask intuitive questions to help them explore their feelings.
 
@@ -77,7 +78,7 @@ Respond ONLY with valid JSON in this exact format:
 
     const result = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 800,
+      max_tokens: 1000,
       system: systemPrompt,
       messages: apiMessages,
     });
@@ -104,7 +105,7 @@ app.post('/api/assess', async (req, res) => {
     return res.status(400).json({ error: 'Not enough conversation history to assess.' });
   }
 
-  const systemPrompt = `You are Dr. Elena Hart, a compassionate and experienced psychiatrist with 20+ years of practice.
+  const systemPrompt = `You are Dr. AI Hart, a compassionate and experienced psychiatrist with 20+ years of practice.
 
 You have just completed a multi-turn intake conversation with a patient. Review the ENTIRE conversation below and produce a comprehensive psychiatric assessment.
 
@@ -140,7 +141,7 @@ Respond ONLY with valid JSON in this exact format:
 
     const result = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: apiMessages,
     });
