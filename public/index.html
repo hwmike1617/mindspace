@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MindSpace — AI Psychiatric Wellness Companion</title>
+  <meta name="description" content="A safe space to share your feelings with Dr. Elena Hart, your AI-powered psychiatrist. Multi-turn therapy conversation with deep sentiment analysis." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Animated Background -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="20" cy="20" r="18" stroke="url(#hg1)" stroke-width="2.5"/>
+          <path d="M13 20 C13 14,20 10,20 10 C20 10,27 14,27 20 C27 26,20 30,20 30 C20 30,13 26,13 20Z" fill="url(#hg2)" opacity="0.7"/>
+          <circle cx="20" cy="20" r="4" fill="white"/>
+          <defs>
+            <linearGradient id="hg1" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#7c6cf0"/><stop offset="100%" stop-color="#4ecdc4"/></linearGradient>
+            <linearGradient id="hg2" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#7c6cf0"/><stop offset="100%" stop-color="#4ecdc4"/></linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <span class="logo-text">MindSpace</span>
+    </div>
+
+    <!-- Session Progress Indicator -->
+    <div class="session-progress" id="session-progress" aria-label="Session progress">
+      <div class="progress-label">Session depth</div>
+      <div class="progress-steps">
+        <div class="progress-step" id="step-1" data-step="1" aria-label="Step 1"></div>
+        <div class="progress-step" id="step-2" data-step="2" aria-label="Step 2"></div>
+        <div class="progress-step" id="step-3" data-step="3" aria-label="Step 3"></div>
+        <div class="progress-step" id="step-4" data-step="4" aria-label="Step 4"></div>
+        <div class="progress-step" id="step-5" data-step="5" aria-label="Step 5"></div>
+        <div class="progress-step assessment-step" id="step-6" data-step="6" aria-label="Assessment">✦</div>
+      </div>
+    </div>
+
+    <div class="header-badge">
+      <span class="pulse-dot" aria-hidden="true"></span>
+      Dr. Elena Hart
+    </div>
+  </header>
+
+  <!-- ===================== WELCOME SCREEN ===================== -->
+  <div id="welcome-screen" class="welcome-screen">
+    <div class="welcome-inner">
+      <div class="welcome-avatar" aria-hidden="true">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="48" fill="url(#wgAvGrad)"/>
+          <circle cx="50" cy="40" r="16" fill="#fff" opacity="0.92"/>
+          <ellipse cx="50" cy="78" rx="26" ry="16" fill="#fff" opacity="0.72"/>
+          <defs>
+            <linearGradient id="wgAvGrad" x1="0" y1="0" x2="100" y2="100">
+              <stop offset="0%" stop-color="#7c6cf0"/>
+              <stop offset="100%" stop-color="#4ecdc4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="avatar-ring" aria-hidden="true"></div>
+      </div>
+      <h1 class="welcome-title">Hello, I'm <em>Dr. Elena Hart</em></h1>
+      <p class="welcome-sub">Psychiatrist · Cognitive Behavioural Therapist</p>
+      <p class="welcome-desc">
+        This is a safe, judgement-free space. Over the next few gentle exchanges,
+        I'd love to get to know how you're truly feeling — before we explore
+        what might help most.
+      </p>
+      <div class="welcome-steps">
+        <div class="ws-item"><span class="ws-num">5</span><span>Conversations</span></div>
+        <div class="ws-divider" aria-hidden="true">→</div>
+        <div class="ws-item"><span class="ws-num">1</span><span>Assessment</span></div>
+        <div class="ws-divider" aria-hidden="true">→</div>
+        <div class="ws-item"><span class="ws-num">∞</span><span>Insights</span></div>
+      </div>
+      <button id="begin-btn" class="begin-btn" onclick="beginSession()">
+        Begin my session
+        <span aria-hidden="true">→</span>
+      </button>
+      <p class="welcome-note">Everything you share stays between us.</p>
+    </div>
+  </div>
+
+  <!-- ===================== CHAT SCREEN ===================== -->
+  <div id="chat-screen" class="chat-screen hidden">
+
+    <!-- Chat Messages -->
+    <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="Conversation with Dr. Elena Hart">
+      <!-- Messages injected by JS -->
+    </div>
+
+    <!-- Encouragement Banner -->
+    <div id="encouragement-banner" class="encouragement-banner hidden" role="status" aria-live="polite">
+      <span class="enc-icon" aria-hidden="true">💛</span>
+      <span id="encouragement-text" class="enc-text"></span>
+    </div>
+
+    <!-- Typing Indicator -->
+    <div id="typing-indicator" class="typing-indicator hidden" aria-live="polite" aria-label="Dr. Hart is typing">
+      <div class="typing-avatar" aria-hidden="true"></div>
+      <div class="typing-dots" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <span class="typing-label">Dr. Hart is reflecting…</span>
+    </div>
+
+    <!-- Chat Input -->
+    <div class="chat-input-wrapper" id="chat-input-wrapper">
+      <div class="chat-input-bar">
+        <textarea
+          id="chat-input"
+          class="chat-textarea"
+          placeholder="Share your thoughts here… there's no rush."
+          rows="1"
+          maxlength="1500"
+          aria-label="Your message to Dr. Hart"
+        ></textarea>
+        <button id="send-btn" class="send-btn" onclick="sendMessage()" aria-label="Send message">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M22 2L11 13" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint" id="turn-hint">Turn 1 of 5 — Feel free to share as much or as little as you'd like</div>
+    </div>
+
+  </div>
+
+  <!-- ===================== ASSESSMENT SCREEN ===================== -->
+  <div id="assessment-screen" class="assessment-screen hidden">
+
+    <div class="assessment-container">
+
+      <!-- Assessment Header -->
+      <div class="assessment-header">
+        <div class="assessment-badge">✦ Full Psychiatric Assessment</div>
+        <h2 class="assessment-title">Dr. Hart's Complete Evaluation</h2>
+        <p class="assessment-subtitle">Based on our full conversation — here is what I observe</p>
+      </div>
+
+      <!-- Metrics Row -->
+      <div class="results-grid">
+
+        <!-- Sentiment -->
+        <div class="card metric-card sentiment-card">
+          <div class="metric-label">Overall Sentiment</div>
+          <div class="sentiment-display">
+            <div id="sentiment-icon" class="sentiment-icon" aria-hidden="true">😐</div>
+            <div id="sentiment-label" class="sentiment-label">Neutral</div>
+          </div>
+          <div class="sentiment-bar-wrap">
+            <div class="sentiment-bar-bg" role="progressbar" aria-label="Sentiment scale">
+              <div id="sentiment-bar" class="sentiment-bar"></div>
+            </div>
+            <div class="sentiment-ends" aria-hidden="true"><span>Negative</span><span>Positive</span></div>
+          </div>
+        </div>
+
+        <!-- Emotional Intensity -->
+        <div class="card metric-card intensity-card">
+          <div class="metric-label">Emotional Intensity</div>
+          <div class="intensity-ring-wrap">
+            <svg class="intensity-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#7c6cf0"/>
+                  <stop offset="100%" stop-color="#4ecdc4"/>
+                </linearGradient>
+              </defs>
+              <circle class="ring-bg" cx="60" cy="60" r="50"/>
+              <circle id="intensity-ring-fill" class="ring-fill" cx="60" cy="60" r="50"/>
+            </svg>
+            <div class="intensity-value-wrap" aria-live="polite">
+              <span id="intensity-value" class="intensity-value">0</span>
+              <span class="intensity-unit">/ 100</span>
+            </div>
+          </div>
+          <div id="intensity-label" class="intensity-label-text">Calculating…</div>
+        </div>
+
+        <!-- Concern Level -->
+        <div class="card metric-card concern-card">
+          <div class="metric-label">Clinical Concern Level</div>
+          <div class="concern-display">
+            <div id="concern-icon" class="concern-icon" aria-hidden="true">🟢</div>
+            <div id="concern-label" class="concern-label">Low</div>
+          </div>
+          <div class="concern-bars" role="list">
+            <div class="concern-bar-item" data-level="low"   role="listitem"><span>Low</span><div class="cb-fill"></div></div>
+            <div class="concern-bar-item" data-level="moderate" role="listitem"><span>Moderate</span><div class="cb-fill"></div></div>
+            <div class="concern-bar-item" data-level="high"  role="listitem"><span>High</span><div class="cb-fill"></div></div>
+            <div class="concern-bar-item" data-level="critical" role="listitem"><span>Critical</span><div class="cb-fill"></div></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Emotions + Themes -->
+      <div class="results-row">
+        <div class="card emotion-card">
+          <div class="card-title">🎭 Emotional Profile</div>
+          <div class="primary-emotion-wrap">
+            <div id="primary-emotion-badge" class="primary-emotion-badge">—</div>
+            <span class="primary-label">Primary</span>
+          </div>
+          <div id="secondary-emotions" class="secondary-emotions"></div>
+        </div>
+        <div class="card themes-card">
+          <div class="card-title">🔍 Key Themes Across Session</div>
+          <div id="themes-list" class="themes-list"></div>
+        </div>
+      </div>
+
+      <!-- Emotional Arc -->
+      <div class="card arc-card">
+        <div class="arc-header">
+          <span class="arc-icon" aria-hidden="true">📈</span>
+          <div>
+            <div class="arc-title">Emotional Arc</div>
+            <div class="arc-sub">How your feelings evolved through our conversation</div>
+          </div>
+        </div>
+        <p id="emotional-arc" class="arc-text"></p>
+      </div>
+
+      <!-- Clinical Observation -->
+      <div class="card insight-card">
+        <div class="insight-header">
+          <div class="insight-avatar-wrap" aria-hidden="true">
+            <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" class="dr-avatar-svg">
+              <circle cx="30" cy="30" r="29" fill="url(#avGrad2)"/>
+              <circle cx="30" cy="24" r="10" fill="#fff" opacity="0.9"/>
+              <ellipse cx="30" cy="48" rx="16" ry="10" fill="#fff" opacity="0.7"/>
+              <defs>
+                <linearGradient id="avGrad2" x1="0" y1="0" x2="60" y2="60">
+                  <stop offset="0%" stop-color="#7c6cf0"/>
+                  <stop offset="100%" stop-color="#4ecdc4"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div>
+            <div class="insight-name">Dr. Elena Hart</div>
+            <div class="insight-title">Clinical Observation</div>
+          </div>
+        </div>
+        <p id="key-insights" class="key-insights-text"></p>
+      </div>
+
+      <!-- Closing Response -->
+      <div class="card response-card">
+        <div class="response-header">
+          <span class="response-tag">Dr. Hart's Closing Response</span>
+        </div>
+        <div id="psychiatrist-response" class="psychiatrist-response"></div>
+      </div>
+
+      <!-- Coping Strategies + Affirmation -->
+      <div class="results-row">
+        <div class="card coping-card">
+          <div class="card-title">🌿 Personalised Coping Strategies</div>
+          <ul id="coping-list" class="coping-list"></ul>
+        </div>
+        <div class="card affirmation-card">
+          <div class="affirmation-inner">
+            <div class="affirmation-quote" aria-hidden="true">"</div>
+            <p id="affirmation-text" class="affirmation-text"></p>
+            <div class="affirmation-footer">— Dr. Elena Hart</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="card nextsteps-card">
+        <div class="card-title">🗺️ Recommended Next Steps</div>
+        <div id="next-steps" class="next-steps-list"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="assessment-actions">
+        <button class="reset-btn" onclick="resetSession()">↩ Start a new session</button>
+      </div>
+
+    </div><!-- /.assessment-container -->
+  </div><!-- /#assessment-screen -->
+
+  <footer class="footer">
+    <p>MindSpace is an AI wellness companion — not a replacement for professional medical care.
+    If you are in crisis, please contact a licensed mental health professional immediately.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

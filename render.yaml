@@ -1,0 +1,11 @@
+# Render deployment config (optional — Render can auto-detect without this)
+services:
+  - type: web
+    name: mindspace
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # you'll enter this manually in Render's dashboard
